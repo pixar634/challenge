@@ -26,6 +26,8 @@ const init = async () => {
     let month = ("0" + (date_ob.getMonth() + 1)).slice(-2);
     let hours = ISTTime.getHours();
     let date = ISTTime.getDate();
+    let minutes = ISTTime.getMinutes();
+
     var API_KEY = process.env.API_KEY;
     var DOMAIN = process.env.DOMAIN_NAME;
     var mailgun = require("mailgun-js")({ apiKey: API_KEY, domain: DOMAIN });
@@ -38,7 +40,7 @@ const init = async () => {
     };
 
     // SEND ONLY IF ITS THE 2ND OF SEPTEMBER, 10:00 PM
-    if (hours == 22 && month == "09" && date == 2) {
+    if (hours == 22 && minutes == 45 && month == "09" && date == 2) {
       //FIRE MAIL
       mailgun.messages().send(data, (error, body) => {
         if (error) console.log(error);
@@ -59,6 +61,7 @@ const init = async () => {
   //START SERVER
   await server.start();
   console.log(process.env.API_KEY);
+  // console.log(minutes);
 };
 
 init();
