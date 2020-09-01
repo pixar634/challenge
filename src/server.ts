@@ -9,8 +9,14 @@ const init = async () => {
   const { config } = require("./config");
   let cron = require("node-cron");
   let date_ob = new Date();
+  let currentOffset = date_ob.getTimezoneOffset();
+  let ISTOffset = 330;
+  let ISTTime = new Date(
+    date_ob.getTime() + (ISTOffset + currentOffset) * 60000
+  );
   let month = ("0" + (date_ob.getMonth() + 1)).slice(-2);
-  let hours = date_ob.getHours();
+  let hours = ISTTime.getHours();
+  let date = ISTTime.getDate();
 
   const server = Hapi.server({
     port: config.api.port,
@@ -27,7 +33,7 @@ const init = async () => {
     subject: "Hello",
     text: "Hey There ! Hope you doing well!",
   };
-  if (hours == 22 && month == "09") {
+  if (hours == 22 && month == "09" && date == 2) {
     mailgun.messages().send(data, (error, body) => {
       if (error) console.log(error);
       else console.log(body);
