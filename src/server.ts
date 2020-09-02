@@ -2,66 +2,76 @@
 require("dotenv").config();
 
 import * as Hapi from "@hapi/hapi";
+import { Schema, Types } from "mongoose";
 
 // import { v0 } from "./api/v0";
 
 const init = async () => {
   const { config } = require("./config");
   let cron = require("node-cron");
-
+  var mongoose = require("mongoose");
+  const axios = require("axios");
   // CONFIGURE SERVER CREDS FROM CONFIG FILE
   const server = Hapi.server({
     port: config.api.port,
     host: config.api.host,
   });
+  let username = process.env.MONGO_USER;
+  let password = process.env.MONGO_PASS;
+  let cluster = process.env.MONGO_CLUSTER;
+  let token = process.env.AIRTABLE_API_KEY;
+  let base_key = process.env.AIRTABLE_BASE_KEY;
 
-  // CHECKS THE CURRENT TIME IN IST
-  function getTimeForMail() {
-    let date_ob = new Date();
-    let currentOffset = date_ob.getTimezoneOffset();
-    let ISTOffset = 330;
-    let ISTTime = new Date(
-      date_ob.getTime() + (ISTOffset + currentOffset) * 60000
-    );
-    let month = ("0" + (date_ob.getMonth() + 1)).slice(-2);
-    let hours = ISTTime.getHours();
-    let date = ISTTime.getDate();
-    let minutes = ISTTime.getMinutes();
+  /*                            PART  2  BEGINS [  Airtable API data integration into mongoDb database  ]                   */
 
-    var API_KEY = process.env.API_KEY;
-    var DOMAIN = process.env.DOMAIN_NAME;
-    var mailgun = require("mailgun-js")({ apiKey: API_KEY, domain: DOMAIN });
-
-    const data = {
-      from: "test@sandbox9b55f02af3404d638506e482bcfa0527.mailgun.org",
-      to: "soumavapaul93@gmail.com",
-      subject: "Hello",
-      text: "Hey There ! Hope you doing well!",
-    };
-
-    // SEND ONLY IF ITS THE 2ND OF SEPTEMBER, 10:00 PM
-    if (hours == 22 && minutes == 45 && month == "09" && date == 2) {
-      //FIRE MAIL
-      mailgun.messages().send(data, (error, body) => {
-        if (error) console.log(error);
-        else console.log(body);
+  try {
+    // mongoose.set("useCreateIndex", true);
+    await mongoose
+      .connect(
+        `mongodb+srv://${username}:${password}@${cluster}/ozo?retryWrites=true`,
+        {
+          useNewUrlParser: true,
+          useUnifiedTopology: true,
+        }
+      )
+      .then(() => {
+        console.log("MongoDB Connected…");
       });
-    } else {
-      console.log("Its not time yet!");
-    }
+  } catch (error) {
+    console.log(error);
   }
-  //END OF GETTIMEFORMAIL
+  const DataSchema = new Schema(
+    {
+      data_id: Types.ObjectId,
+    },
+    { strict: false, timestamps: true }
+  );
+  axios
+    .get(
+      `https://api.airtable.com/v0/${base_key}/ozo?maxRecords=100&view=Grid%20view`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    )
+    .then((res) => {
+      const savedrecords = res.data;
+      console.log(res.data.records, "THIS IS THE DATA");
+      // INITIALISE SCHEMA OF COLLECTION
+      var Data = mongoose.model("Data", DataSchema);
+      // LOAD SCHEMA OF COLLECTION
+      const load = new Data(savedrecords);
+      // SAVE TO DATABASE
+      load.save();
+    })
+    .catch((error) => {
+      console.error(error, "AIRTABLE ERROR");
+    });
 
-  //SCHEDULER CRON JOB
-  cron.schedule("* * * * *", () => {
-    console.log("running a task every minute");
-    getTimeForMail();
-  });
+  /*                                PART 2 ENDS                              */
 
-  //START SERVER
   await server.start();
-  console.log(process.env.API_KEY);
-  // console.log(minutes);
 };
 
 init();
