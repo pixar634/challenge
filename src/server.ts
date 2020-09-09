@@ -2,76 +2,52 @@
 require("dotenv").config();
 
 import * as Hapi from "@hapi/hapi";
-import { Schema, Types } from "mongoose";
-
-// import { v0 } from "./api/v0";
+import * as Inert from '@hapi/inert';
+import * as Jwt from 'hapi-auth-jwt2';
+import { validateFunc } from './validate';
+import { v0 } from "./api/v0";
+import { connect } from './connections/main';
 
 const init = async () => {
   const { config } = require("./config");
-  let cron = require("node-cron");
-  var mongoose = require("mongoose");
-  const axios = require("axios");
+
+
   // CONFIGURE SERVER CREDS FROM CONFIG FILE
   const server = Hapi.server({
     port: config.api.port,
     host: config.api.host,
   });
-  let username = process.env.MONGO_USER;
-  let password = process.env.MONGO_PASS;
-  let cluster = process.env.MONGO_CLUSTER;
-  let token = process.env.AIRTABLE_API_KEY;
-  let base_key = process.env.AIRTABLE_BASE_KEY;
-
-  /*                            PART  2  BEGINS [  Airtable API data integration into mongoDb database  ]                   */
-
-  try {
-    // mongoose.set("useCreateIndex", true);
-    await mongoose
-      .connect(
-        `mongodb+srv://${username}:${password}@${cluster}/ozo?retryWrites=true`,
-        {
-          useNewUrlParser: true,
-          useUnifiedTopology: true,
-        }
-      )
-      .then(() => {
-        console.log("MongoDB Connected…");
-      });
-  } catch (error) {
-    console.log(error);
-  }
-  const DataSchema = new Schema(
-    {
-      data_id: Types.ObjectId,
-    },
-    { strict: false, timestamps: true }
-  );
-  axios
-    .get(
-      `https://api.airtable.com/v0/${base_key}/ozo?maxRecords=100&view=Grid%20view`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+  const models: any = await connect(config);
+  await server.register([Inert, Jwt]);
+  server.auth.strategy('jwt', 'jwt', {
+    key: config.auth.secret.jwt,
+    validate: validateFunc(models),
+    verifyOptions: { algorithms: ['HS256'] }
+  });
+  server.auth.default('jwt');
+  server.route({
+    method: 'GET',
+    path: '/{params*}',
+    options: { auth: false },
+    handler: {
+      directory: {
+        path: './public'
       }
-    )
-    .then((res) => {
-      const savedrecords = res.data;
-      console.log(res.data.records, "THIS IS THE DATA");
-      // INITIALISE SCHEMA OF COLLECTION
-      var Data = mongoose.model("Data", DataSchema);
-      // LOAD SCHEMA OF COLLECTION
-      const load = new Data(savedrecords);
-      // SAVE TO DATABASE
-      load.save();
-    })
-    .catch((error) => {
-      console.error(error, "AIRTABLE ERROR");
-    });
-
-  /*                                PART 2 ENDS                              */
-
+    }
+  });
+  await server.register([{
+    plugin: v0,
+    routes: {
+      prefix: '/v0'
+    },
+    options: { config, models }
+  }]);
+  // let username = process.env.MONGO_USER;
+  // let password = process.env.MONGO_PASS;
+  // let cluster = process.env.MONGO_CLUSTER;
+  // let token = process.env.AIRTABLE_API_KEY;
+  // let base_key = process.env.AIRTABLE_BASE_KEY;
   await server.start();
 };
-
+if (['production', 'staging'].includes(process.env.NODE_ENV)) require('dotenv').config();
 init();

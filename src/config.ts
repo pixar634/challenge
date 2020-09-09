@@ -16,7 +16,7 @@ export const config = {
   },
   auth: {
     secret: {
-      jwt: process.env.JWT_SECRET,
+      jwt: process.env.JWT_SECRET || 'asretdfyug7t86r75FUGYY*t86r75dytKUYG7t8r675dYRTYGUoy7t8r675dyRKTGYIt786r75DYTKGYIt7r65dyrTYGIT786r5dtkGYHBKJHUY*(()Y*TOGfuty86rohI&t87tG',
     },
   },
 };
